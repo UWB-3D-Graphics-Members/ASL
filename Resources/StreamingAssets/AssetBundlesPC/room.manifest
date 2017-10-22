@@ -1,0 +1,45 @@
+ManifestFileVersion: 0
+CRC: 4212929577
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: e8a8dcfec61bd1d76aed302343de8a36
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: a3bb25f3b624f7642a444787330fe494
+HashAppended: 0
+ClassTypes:
+- Class: 1
+  Script: {instanceID: 0}
+- Class: 4
+  Script: {instanceID: 0}
+- Class: 21
+  Script: {instanceID: 0}
+- Class: 23
+  Script: {instanceID: 0}
+- Class: 33
+  Script: {instanceID: 0}
+- Class: 43
+  Script: {instanceID: 0}
+- Class: 48
+  Script: {instanceID: 0}
+- Class: 49
+  Script: {instanceID: 0}
+- Class: 64
+  Script: {instanceID: 0}
+- Class: 114
+  Script: {fileID: 11500000, guid: deff47c017085d040b14824683382ea4, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: 87fd55fcc0dd6074ab751285f259d1c9, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: aa584fbee541324448dd18d8409c7a41, type: 3}
+- Class: 115
+  Script: {instanceID: 0}
+- Class: 187
+  Script: {instanceID: 0}
+Assets:
+- Assets/ASL/Room_Texture/Resources/Room/RoomMatrices.txt
+- Assets/ASL/Room_Texture/Resources/Room/Room.prefab
+- Assets/ASL/Room_Texture/Resources/Room/RoomTextureArray.asset
+- Assets/ASL/Room_Texture/Resources/Room/Shaders/MyRoomShader.shader
+Dependencies: []
