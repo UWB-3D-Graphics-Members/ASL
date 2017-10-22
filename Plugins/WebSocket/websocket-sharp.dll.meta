@@ -1,5 +1,7 @@
 fileFormatVersion: 2
-guid: 338ac0f7754443b459112fc6990204f1
+guid: 28cbb0e189ade2a4bbcd51167661df34
+timeCreated: 1508634967
+licenseType: Free
 PluginImporter:
   serializedVersion: 1
   iconMap: {}
@@ -7,64 +9,17 @@ PluginImporter:
   isPreloaded: 0
   isOverridable: 0
   platformData:
-    Android:
-      enabled: 0
-      settings:
-        CPU: AnyCPU
     Any:
-      enabled: 0
+      enabled: 1
       settings: {}
     Editor:
-      enabled: 1
+      enabled: 0
       settings:
-        CPU: AnyCPU
         DefaultValueInitialized: true
-        OS: AnyOS
-    Linux:
-      enabled: 0
-      settings:
-        CPU: x86
-    Linux64:
-      enabled: 0
-      settings:
-        CPU: x86_64
-    OSXIntel:
-      enabled: 0
-      settings:
-        CPU: AnyCPU
-    OSXIntel64:
-      enabled: 0
-      settings:
-        CPU: AnyCPU
-    WP8:
-      enabled: 0
-      settings:
-        CPU: AnyCPU
-        DontProcess: False
-        PlaceholderPath: 
-    Win:
-      enabled: 0
-      settings:
-        CPU: AnyCPU
-    Win64:
-      enabled: 0
-      settings:
-        CPU: AnyCPU
     WindowsStoreApps:
       enabled: 0
       settings:
         CPU: AnyCPU
-        DontProcess: False
-        PlaceholderPath: 
-        SDK: AnySDK
-    XboxOne:
-      enabled: 1
-      settings: {}
-    iOS:
-      enabled: 0
-      settings:
-        CompileFlags: 
-        FrameworkDependencies: 
   userData: 
   assetBundleName: 
   assetBundleVariant: 

@@ -1,5 +1,7 @@
 fileFormatVersion: 2
-guid: 82c3c10ac29d0ce499c1e49f598a345a
+guid: 61c9fcc35a4ec6244a14f37a09a7f9fe
+timeCreated: 1508634762
+licenseType: Free
 PluginImporter:
   serializedVersion: 1
   iconMap: {}
@@ -7,62 +9,17 @@ PluginImporter:
   isPreloaded: 0
   isOverridable: 0
   platformData:
-    Android:
-      enabled: 0
-      settings:
-        CPU: AnyCPU
     Any:
-      enabled: 0
+      enabled: 1
       settings: {}
     Editor:
       enabled: 0
       settings:
-        CPU: AnyCPU
         DefaultValueInitialized: true
-        OS: AnyOS
-    Linux:
-      enabled: 0
-      settings:
-        CPU: x86
-    Linux64:
-      enabled: 0
-      settings:
-        CPU: x86_64
-    OSXIntel:
-      enabled: 0
-      settings:
-        CPU: AnyCPU
-    OSXIntel64:
-      enabled: 0
-      settings:
-        CPU: AnyCPU
-    WP8:
-      enabled: 0
-      settings:
-        CPU: AnyCPU
-        DontProcess: False
-        PlaceholderPath: Assets/Plugins/Photon3Unity3D.dll
-    Win:
-      enabled: 0
-      settings:
-        CPU: AnyCPU
-    Win64:
-      enabled: 0
-      settings:
-        CPU: AnyCPU
     WindowsStoreApps:
-      enabled: 1
-      settings:
-        CPU: AnyCPU
-        DontProcess: False
-        PlaceholderPath: Assets/Plugins/Photon3Unity3D.dll
-        SDK: AnySDK
-        ScriptingBackend: DotNet
-    iOS:
       enabled: 0
       settings:
-        CompileFlags: 
-        FrameworkDependencies: 
+        CPU: AnyCPU
   userData: 
   assetBundleName: 
   assetBundleVariant: 
