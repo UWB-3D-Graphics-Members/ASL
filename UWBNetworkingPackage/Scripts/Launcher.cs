@@ -126,6 +126,13 @@ namespace UWBNetworkingPackage
             }
         }
 
+        public override void OnJoinedRoom()
+        {
+            base.OnJoinedRoom();
+
+            ASL.Adapters.PUN.PUNEventCascader.Join();
+        }
+
         [PunRPC]
         public virtual void RequestRoomModel()
         {

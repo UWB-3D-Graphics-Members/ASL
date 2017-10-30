@@ -8,9 +8,9 @@ namespace UWBNetworkingPackage
     public class ObjectManager : MonoBehaviour
     {
         #region Fields
-        private const byte EV_INSTANTIATE = 99;
-        private const byte EV_DESTROYOBJECT = 98;
         private string resourceFolderPath;
+
+        private List<GameObject> nonSyncItems;
         #endregion
 
         #region Methods
@@ -18,6 +18,8 @@ namespace UWBNetworkingPackage
         {
             PhotonNetwork.OnEventCall += OnEvent;
             resourceFolderPath = Path.Combine(Path.Combine(Directory.GetCurrentDirectory(), "Assets"), "ASL/Resources");
+            
+            SetNonAutoSyncItems();
         }
 
         public GameObject Instantiate(string prefabName, Vector3 position, Quaternion rotation)
@@ -74,7 +76,62 @@ namespace UWBNetworkingPackage
             HandleLocalDestroyLogic(go, viewIDs);
         }
 
+        public void ForceSyncScene(int otherPlayerID)
+        {
+            RaiseSyncSceneEventHandler(otherPlayerID, true);
+        }
+        
         #region Helper Functions
+#region Non Sync Items
+        private void SetNonAutoSyncItems()
+        {
+            nonSyncItems = new List<GameObject>();
+            List<GameObject> nonSyncGOs = new List<GameObject>();
+
+            foreach(RoomManager roomManager in GameObject.FindObjectsOfType<RoomManager>())
+            {
+                nonSyncGOs.Add(roomManager.gameObject);
+            }
+            foreach(ASL.Manipulation.Objects.ObjectInteractionManager objInteractionManager in GameObject.FindObjectsOfType<ASL.Manipulation.Objects.ObjectInteractionManager>())
+            {
+                nonSyncGOs.Add(objInteractionManager.gameObject);
+            }
+            foreach(NetworkManager networkManager in GameObject.FindObjectsOfType<NetworkManager>())
+            {
+                nonSyncGOs.Add(networkManager.gameObject);
+            }
+            foreach(ASL.Adapters.PUN.RPCManager rpcManager in GameObject.FindObjectsOfType<ASL.Adapters.PUN.RPCManager>())
+            {
+                nonSyncGOs.Add(rpcManager.gameObject);
+            }
+            foreach(ObjectManager objManager in GameObject.FindObjectsOfType<ObjectManager>())
+            {
+                nonSyncGOs.Add(objManager.gameObject);
+            }
+            foreach(Camera cam in GameObject.FindObjectsOfType<Camera>())
+            {
+                nonSyncGOs.Add(cam.gameObject);
+            }
+
+            nonSyncItems = RefineNonSyncGOList(nonSyncGOs);
+        }
+
+        private List<GameObject> RefineNonSyncGOList(IEnumerable<GameObject> goList)
+        {
+            List<GameObject> refinedGOList = new List<GameObject>();
+
+            foreach(GameObject go in goList)
+            {
+                if (!refinedGOList.Contains(go))
+                {
+                    refinedGOList.Add(go);
+                }
+            }
+
+            return refinedGOList;
+        }
+#endregion
+
         private GameObject InstantiateLocally(string prefabName)
         {
             bool connected = PhotonNetwork.connectedAndReady;
@@ -94,17 +151,21 @@ namespace UWBNetworkingPackage
                 Debug.LogError("Failed to Instantiate prefab: " + prefabName + ".");
                 return null;
             }
+#if UNITY_EDITOR
+            GameObject go = UnityEditor.PrefabUtility.InstantiatePrefab(prefabGo) as GameObject;
+#else
             GameObject go = GameObject.Instantiate(prefabGo);
+#endif
             go.name = prefabGo.name;
 
             HandleLocalLogic(go);
+            RegisterObjectCreation(go, prefabName);
 
             return go;
         }
 
         private bool RetrieveFromPUNCache(string prefabName, out GameObject prefabGo)
         {
-
             bool UsePrefabCache = true;
 
             if (!UsePrefabCache || !PhotonNetwork.PrefabCache.TryGetValue(prefabName, out prefabGo))
@@ -157,7 +218,7 @@ namespace UWBNetworkingPackage
             return go;
         }
 
-        #region PUN Stuff
+#region PUN Stuff
         private GameObject ResourceDive(string prefabName, string directory)
         {
             string resourcePath = ConvertToResourcePath(directory, prefabName);
@@ -340,9 +401,9 @@ namespace UWBNetworkingPackage
             //return networkingPeer.DoInstantiate(instantiateEvent, networkingPeer.LocalPlayer, prefabGo);
         }
 
-        #endregion
+#endregion
 
-        #region PUN Event Stuff
+#region PUN Event Stuff
         private void RaiseInstantiateEventHandler(GameObject go)
         {
             //Debug.Log("Attempting to raise event for instantiation");
@@ -351,7 +412,12 @@ namespace UWBNetworkingPackage
 
             byte[] content = new byte[2];
             ExitGames.Client.Photon.Hashtable instantiateEvent = new ExitGames.Client.Photon.Hashtable();
-            string prefabName = go.name;
+#if UNITY_EDITOR
+            string prefabName = UnityEditor.PrefabUtility.GetPrefabParent(go).name;
+#else
+            //string prefabName = go.name;
+            string prefabName = ObjectInstantiationDatabase.GetPrefabName(go);
+#endif
             instantiateEvent[(byte)0] = prefabName;
 
             if (go.transform.position != Vector3.zero)
@@ -382,9 +448,69 @@ namespace UWBNetworkingPackage
 
             RaiseEventOptions options = new RaiseEventOptions();
             options.Receivers = ReceiverGroup.Others;
-            PhotonNetwork.RaiseEvent(EV_INSTANTIATE, instantiateEvent, true, options);
+            PhotonNetwork.RaiseEvent(ASLEventCode.EV_INSTANTIATE, instantiateEvent, true, options);
 
             //peer.OpRaiseEvent(EV_INSTANTIATE, instantiateEvent, true, null);
+        }
+        
+        private void RaiseSyncSceneEventHandler(int otherPlayerID, bool forceSync)
+        {
+            if (PhotonNetwork.isMasterClient || forceSync)
+            {
+                List<GameObject> ASLObjectList = GrabAllASLObjects();
+
+                NetworkingPeer peer = PhotonNetwork.networkingPeer;
+                foreach (GameObject go in ASLObjectList)
+                {
+                    if (nonSyncItems.Contains(go))
+                    {
+                        continue;
+                    }
+
+                    ExitGames.Client.Photon.Hashtable syncSceneData = new ExitGames.Client.Photon.Hashtable();
+
+                    syncSceneData[(byte)0] = otherPlayerID;
+
+#if UNITY_EDITOR
+                    string prefabName = UnityEditor.PrefabUtility.GetPrefabParent(go).name;
+#else
+                    //string prefabName = go.name;
+                    string prefabName = ObjectInstantiationDatabase.GetPrefabName(go);
+#endif
+                    UnityEngine.Debug.Log("Prefab name = " + prefabName);
+                    syncSceneData[(byte)1] = prefabName;
+
+                    if (go.transform.position != Vector3.zero)
+                    {
+                        syncSceneData[(byte)2] = go.transform.position;
+                    }
+
+                    if (go.transform.rotation != Quaternion.identity)
+                    {
+                        syncSceneData[(byte)3] = go.transform.rotation;
+                    }
+
+                    int[] viewIDs = ExtractPhotonViewIDs(go);
+                    syncSceneData[(byte)4] = viewIDs;
+
+                    if (peer.currentLevelPrefix > 0)
+                    {
+                        syncSceneData[(byte)5] = peer.currentLevelPrefix;
+                    }
+
+                    syncSceneData[(byte)6] = PhotonNetwork.ServerTimestamp;
+                    syncSceneData[(byte)7] = go.GetPhotonView().instantiationId;
+
+                    //RaiseEventOptions options = new RaiseEventOptions();
+                    //options.CachingOption = (isGlobalObject) ? EventCaching.AddToRoomCacheGlobal : EventCaching.AddToRoomCache;
+
+                    //Debug.Log("All items packed. Attempting to literally raise event now.");
+
+                    RaiseEventOptions options = new RaiseEventOptions();
+                    options.Receivers = ReceiverGroup.Others;
+                    PhotonNetwork.RaiseEvent(ASLEventCode.EV_SYNCSCENE, syncSceneData, true, options);
+                }
+            }
         }
 
         private void RaiseDestroyObjectEventHandler(string objectName, int[] viewIDs)
@@ -405,7 +531,7 @@ namespace UWBNetworkingPackage
 
             RaiseEventOptions options = new RaiseEventOptions();
             options.Receivers = ReceiverGroup.Others;
-            PhotonNetwork.RaiseEvent(EV_DESTROYOBJECT, destroyObjectEvent, true, options);
+            PhotonNetwork.RaiseEvent(ASLEventCode.EV_DESTROYOBJECT, destroyObjectEvent, true, options);
         }
         
         private void OnEvent(byte eventCode, object content, int senderID)
@@ -417,28 +543,21 @@ namespace UWBNetworkingPackage
                 Debug.Log(string.Format("Custom OnEvent for CreateObject: {0}", eventCode.ToString()));
             }
 
-            //int actorNr = -1;
-            //PhotonPlayer originatingPlayer = null;
-
-            //if (photonEvent.Parameters.ContainsKey(ParameterCode.ActorNr))
-            //{
-            //    actorNr = (int)photonEvent[ParameterCode.ActorNr];
-            //    originatingPlayer = PhotonNetwork.networkingPeer.GetPlayerWithId(actorNr);
-            //}
-
-            //if (photonEvent.Code.Equals(EV_INSTANTIATE))
-            //{
-            //    //RemoteInstantiate((ExitGames.Client.Photon.Hashtable)photonEvent[ParameterCode.Data], originatingPlayer, null);
-            //    RemoteInstantiate((ExitGames.Client.Photon.Hashtable)photonEvent[ParameterCode.Data]);
-            //}
-
-            if (eventCode.Equals(EV_INSTANTIATE))
+            if (eventCode.Equals(ASLEventCode.EV_INSTANTIATE))
             {
                 RemoteInstantiate((ExitGames.Client.Photon.Hashtable)content);
             }
-            else if (eventCode.Equals(EV_DESTROYOBJECT))
+            else if (eventCode.Equals(ASLEventCode.EV_DESTROYOBJECT))
             {
                 RemoteDestroyObject((ExitGames.Client.Photon.Hashtable)content);
+            }
+            else if (eventCode.Equals(ASLEventCode.EV_JOIN))
+            {
+                RaiseSyncSceneEventHandler(senderID, false);
+            }
+            else if (eventCode.Equals(ASLEventCode.EV_SYNCSCENE))
+            {
+                HandleSyncSceneEvent((ExitGames.Client.Photon.Hashtable)content);
             }
         }
 
@@ -477,12 +596,18 @@ namespace UWBNetworkingPackage
                 return;
             }
 
+#if UNITY_EDITOR
+            GameObject go = UnityEditor.PrefabUtility.InstantiatePrefab(prefabGo) as GameObject;
+#else
             GameObject go = GameObject.Instantiate(prefabGo);
+#endif
             go.name = prefabGo.name;
 
             HandleLocalLogic(go, viewIDs);
             go.transform.position = position;
             go.transform.rotation = rotation;
+
+            RegisterObjectCreation(go, prefabName);
         }
 
         private GameObject HandleLocalLogic(GameObject go, int[] viewIDs)
@@ -496,12 +621,12 @@ namespace UWBNetworkingPackage
         private void RemoteDestroyObject(ExitGames.Client.Photon.Hashtable eventData)
         {
             string objectName = (string)eventData[(byte)0];
-            PhotonView[] views = (PhotonView[])eventData[(byte)1];
+            int[] viewIDs = (int[])eventData[(byte)1];
             int timeStamp = (int)eventData[(byte)2];
 
             // Handle destroy logic
-            GameObject go = LocateObjectToDestroy(objectName, views[0].viewID);
-            
+            GameObject go = LocateObjectToDestroy(objectName, viewIDs[0]);
+            HandleLocalDestroyLogic(go, viewIDs);
         }
         
         private void HandleLocalDestroyLogic(GameObject go, int[] viewIDs)
@@ -533,11 +658,42 @@ namespace UWBNetworkingPackage
                 }
 
                 GameObject.Destroy(go);
+
+                RegisterObjectDeletion(go, go.name);
             }
         }
 
-        #endregion
+        private void HandleSyncSceneEvent(ExitGames.Client.Photon.Hashtable eventData)
+        {
+            int targetPlayerID = (int)eventData[(byte)0];
+            if (PhotonNetwork.player.ID == targetPlayerID)
+            {
+                string prefabName = (string)eventData[(byte)1];
+                Vector3 position = Vector3.zero;
+                if (eventData.ContainsKey((byte)2))
+                {
+                    position = (Vector3)eventData[(byte)2];
+                }
+                Quaternion rotation = Quaternion.identity;
+                if (eventData.ContainsKey((byte)3))
+                {
+                    rotation = (Quaternion)eventData[(byte)3];
+                }
 
+                int[] viewIDs = (int[])eventData[(byte)4];
+                if (eventData.ContainsKey((byte)5))
+                {
+                    uint currentLevelPrefix = (uint)eventData[(byte)5];
+                }
+
+                int serverTimeStamp = (int)eventData[(byte)6];
+                int instantiationID = (int)eventData[(byte)7];
+
+                InstantiateLocally(prefabName, viewIDs, position, rotation);
+            }
+        }
+#endregion
+        
         private GameObject LocateObjectToDestroy(string objectName, int viewID)
         {
             GameObject objectToDestroy = null;
@@ -580,7 +736,36 @@ namespace UWBNetworkingPackage
 
             return viewIDs;
         }
-        #endregion
+        
+        private List<GameObject> GrabAllASLObjects()
+        {
+            List<GameObject> goList = new List<GameObject>();
+
+            PhotonView[] views = GameObject.FindObjectsOfType<PhotonView>();
+            foreach (PhotonView view in views)
+            {
+                GameObject go = view.gameObject;
+                if (!goList.Contains(go))
+                {
+                    goList.Add(go);
+                }
+            }
+
+            return goList;
+        }
+
+        #region Instantiation Database
+        private void RegisterObjectCreation(GameObject go, string prefabName)
+        {
+            ObjectInstantiationDatabase.Add(prefabName, go);
+        }
+
+        private void RegisterObjectDeletion(GameObject go, string goName)
+        {
+            ObjectInstantiationDatabase.Remove(go, goName);
+        }
 #endregion
+        #endregion
+        #endregion
     }
 }

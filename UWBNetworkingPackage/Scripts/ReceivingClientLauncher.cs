@@ -111,6 +111,7 @@ namespace UWBNetworkingPackage
         /// </summary>
         public override void OnJoinedRoom()
         {
+            base.OnJoinedRoom();
             Debug.Log("Client joined room.");
             
 
