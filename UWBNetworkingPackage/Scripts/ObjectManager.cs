@@ -69,11 +69,11 @@ namespace UWBNetworkingPackage
 
         // This function exists to be called when a gameobject is destroyed 
         // since OnDestroy callbacks are local to the GameObject being destroyed
-        public void DestroyObject(string objectName, int[] viewIDs)
+        public void DestroyObject(string objectName, int viewID)
         {
-            GameObject go = LocateObjectToDestroy(objectName, viewIDs[0]);
-            RaiseDestroyObjectEventHandler(objectName, viewIDs);
-            HandleLocalDestroyLogic(go, viewIDs);
+            GameObject go = LocateObjectToDestroy(objectName, viewID);
+            RaiseDestroyObjectEventHandler(objectName, viewID);
+            HandleLocalDestroyLogic(go);
         }
 
         public void ForceSyncScene(int otherPlayerID)
@@ -210,6 +210,10 @@ namespace UWBNetworkingPackage
             }
             else
             {
+                if(go.GetPhotonViewsInChildren().Length != viewIDs.Length)
+                {
+                    UnityEngine.Debug.LogError("Prefab mismatch encountered! Number of children encountered differs between nodes.");
+                }
                 SynchViewIDs(go, viewIDs);
             }
 
@@ -259,27 +263,18 @@ namespace UWBNetworkingPackage
 
         private GameObject AttachPhotonViews(GameObject go)
         {
-            //NetworkingPeer networkingPeer = PhotonNetwork.networkingPeer;
-
-            //Debug.Log("Attempting to attach photon view");
-
-            // Generate and attach Photon Views
-            if (go.GetComponent<PhotonView>() == null)
+            PhotonView pv = go.GetComponent<PhotonView>();
+            if(pv == null)
             {
-                //Debug.Log("Photon view not found...attaching...");
+                // Attach photon view
+                pv = go.AddComponent<PhotonView>();
+            }
+            pv.synchronization = ViewSynchronization.UnreliableOnChange;
 
-                PhotonView pv = go.AddComponent<PhotonView>();
-                //pv.viewID = PhotonNetwork.AllocateViewID();
-                //networkingPeer.RegisterPhotonView(pv);
-                pv.synchronization = ViewSynchronization.UnreliableOnChange;
-
-                for (int i = 0; i < go.transform.childCount; i++)
-                {
-                    GameObject child = go.transform.GetChild(i).gameObject;
-                    PhotonView childPV = child.AddComponent<PhotonView>();
-                    //childPV.viewID = PhotonNetwork.AllocateViewID();
-                    childPV.synchronization = ViewSynchronization.UnreliableOnChange;
-                }
+            for(int i = 0; i < go.transform.childCount; i++)
+            {
+                GameObject child = go.transform.GetChild(i).gameObject;
+                AttachPhotonViews(child);
             }
 
             return go;
@@ -289,35 +284,34 @@ namespace UWBNetworkingPackage
         {
             NetworkingPeer networkingPeer = PhotonNetwork.networkingPeer;
 
-            if (go.GetComponent<UWBPhotonTransformView>() == null)
+            UWBPhotonTransformView ptv = go.GetComponent<UWBPhotonTransformView>();
+
+            if(ptv == null)
             {
-                UWBPhotonTransformView ptv = go.AddComponent<UWBPhotonTransformView>();
-                ptv.enableSyncPos();
-                ptv.enableSyncRot();
-                ptv.enableSyncScale();
+                ptv = go.AddComponent<UWBPhotonTransformView>();
+            }
 
-                PhotonView view = go.GetComponent<PhotonView>();
-                if (view.ObservedComponents == null)
-                {
-                    view.ObservedComponents = new List<Component>();
-                }
-                view.ObservedComponents.Add(ptv);
+            ptv.enableSyncPos();
+            ptv.enableSyncRot();
+            ptv.enableSyncScale();
 
-                for (int i = 0; i < go.transform.childCount; i++)
-                {
-                    GameObject child = go.transform.GetChild(i).gameObject;
-                    UWBPhotonTransformView childPTV = child.AddComponent<UWBPhotonTransformView>();
-                    childPTV.enableSyncPos();
-                    childPTV.enableSyncRot();
-                    childPTV.enableSyncScale();
+            PhotonView view = go.GetComponent<PhotonView>();
+            if(view == null)
+            {
+                UnityEngine.Debug.LogError("Encountered invalid Photon view state when attaching photon transform view. Aborting");
+                return null;
+            }
 
-                    PhotonView childView = child.GetComponent<PhotonView>();
-                    if (childView.ObservedComponents == null)
-                    {
-                        childView.ObservedComponents = new List<Component>();
-                    }
-                    childView.ObservedComponents.Add(childPTV);
-                }
+            if (view.ObservedComponents == null)
+            {
+                view.ObservedComponents = new List<Component>();
+            }
+            view.ObservedComponents.Add(ptv);
+
+            for(int i = 0; i < go.transform.childCount; i++)
+            {
+                GameObject child = go.transform.GetChild(i).gameObject;
+                AttachPhotonTransformViews(child);
             }
 
             return go;
@@ -327,13 +321,8 @@ namespace UWBNetworkingPackage
         {
             NetworkingPeer networkingPeer = PhotonNetwork.networkingPeer;
 
-            PhotonView[] views = new PhotonView[go.GetPhotonViewsInChildren().Length];
-            views[0] = go.GetComponent<PhotonView>();
-            for (int i = 0; i < go.transform.childCount; i++)
-            {
-                views[i + 1] = go.transform.gameObject.GetComponent<PhotonView>();
-            }
-
+            PhotonView[] views = go.GetPhotonViewsInChildren();
+            
             //Debug.Log("Found " + views.Length + " photon views in " + go.name + " object and its children");
             int[] viewIDs = new int[views.Length];
             for (int i = 0; i < viewIDs.Length; i++) // ignore the main gameobject
@@ -356,10 +345,7 @@ namespace UWBNetworkingPackage
             for (int i = 0; i < PVs.Length; i++)
             {
                 PVs[i].viewID = viewIDs[i];
-            }
-            if (viewIDs != null && viewIDs.Length > 0)
-            {
-                go.GetPhotonView().instantiationId = viewIDs[0];
+                PVs[i].instantiationId = viewIDs[i];
             }
         }
         
@@ -513,7 +499,7 @@ namespace UWBNetworkingPackage
             }
         }
 
-        private void RaiseDestroyObjectEventHandler(string objectName, int[] viewIDs)
+        private void RaiseDestroyObjectEventHandler(string objectName, int viewID)
         {
             //Debug.Log("Attempting to raise event for destruction of object");
 
@@ -525,7 +511,7 @@ namespace UWBNetworkingPackage
 
             // need the viewID
             
-            destroyObjectEvent[(byte)1] = viewIDs;
+            destroyObjectEvent[(byte)1] = viewID;
 
             destroyObjectEvent[(byte)2] = PhotonNetwork.ServerTimestamp;
 
@@ -621,22 +607,12 @@ namespace UWBNetworkingPackage
         private void RemoteDestroyObject(ExitGames.Client.Photon.Hashtable eventData)
         {
             string objectName = (string)eventData[(byte)0];
-            int[] viewIDs = (int[])eventData[(byte)1];
+            int viewID = (int)eventData[(byte)1];
             int timeStamp = (int)eventData[(byte)2];
 
             // Handle destroy logic
-            GameObject go = LocateObjectToDestroy(objectName, viewIDs[0]);
-            HandleLocalDestroyLogic(go, viewIDs);
-        }
-        
-        private void HandleLocalDestroyLogic(GameObject go, int[] viewIDs)
-        {
+            GameObject go = LocateObjectToDestroy(objectName, viewID);
             HandleLocalDestroyLogic(go);
-            foreach(int viewID in viewIDs)
-            {
-                PhotonNetwork.networkingPeer.photonViewList.Remove(viewID);
-                PhotonNetwork.UnAllocateViewID(viewID);
-            }
         }
         
         private void HandleLocalDestroyLogic(GameObject go)
@@ -655,6 +631,9 @@ namespace UWBNetworkingPackage
                     //PhotonNetwork.networkingPeer.LocalCleanPhotonView(view);
 
                     view.removedFromLocalViewList = true;
+                    int viewID = view.viewID;
+                    PhotonNetwork.networkingPeer.photonViewList.Remove(viewID);
+                    PhotonNetwork.UnAllocateViewID(viewID);
                 }
 
                 GameObject.Destroy(go);
@@ -722,6 +701,12 @@ namespace UWBNetworkingPackage
             go.AddComponent<UWBNetworkingPackage.OwnableObject>();
             go.AddComponent<UWBNetworkingPackage.DestroyObjectSynchronizer>();
 
+            for(int i = 0; i < go.transform.childCount; i++)
+            {
+                GameObject child = go.transform.GetChild(i).gameObject;
+                SynchCustomScripts(child);
+            }
+
             return go;
         }
 
@@ -764,6 +749,7 @@ namespace UWBNetworkingPackage
         {
             ObjectInstantiationDatabase.Remove(go, goName);
         }
+        
 #endregion
         #endregion
         #endregion

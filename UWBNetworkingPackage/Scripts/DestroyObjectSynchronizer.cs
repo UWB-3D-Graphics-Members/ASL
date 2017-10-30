@@ -24,15 +24,8 @@ namespace UWBNetworkingPackage
             PhotonView view = gameObject.GetComponent<PhotonView>();
             if(view != null)
             {
-                PhotonView[] views = gameObject.GetPhotonViewsInChildren();
-                int[] viewIDs = new int[views.Length];
-                for(int i = 0; i < views.Length; i++)
-                {
-                    viewIDs[i] = views[i].viewID;
-                }
-
-                //int viewID = view.viewID;
-                objManager.DestroyObject(this.name, viewIDs);
+                int viewID = view.viewID;
+                objManager.DestroyObject(this.name, viewID);
             }
         }
     }
